@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kv_store.h"
+#include "storage.h"
 
 static void execute_set();
 static void execute_get();
@@ -11,7 +12,7 @@ int main() {
 
     char command[16];
 
-    printf("Welcome to AytDB!\nCommands: set <key> <value>, get <key>, del <key>, exit\n");
+    printf("Welcome to AytDB!\nCommands: set <key> <value>, get <key>, del <key>, compact, exit\n");
 
     while (1) {
         printf("> ");
@@ -23,6 +24,9 @@ int main() {
             execute_get();
         } else if (strcmp(command, "del") == 0) {
             execute_del();
+        } else if (strcmp(command, "compact") == 0) {
+            storage_compact();
+            printf("Compaction process complete.\n");
         } else if (strcmp(command, "exit") == 0) {
             break;
         } else {

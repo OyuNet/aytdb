@@ -79,3 +79,7 @@ void kv_del(const char* key) {
         }
     }
 }
+
+const Entry* kv_get_all_entries() {
+    return table;
+}

@@ -7,7 +7,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "entry.h"
+
 #define STORAGE_FILE "AytDB.aof"
+#define TEMP_STORAGE_FILE "AytDB.aof.compact"
+
+extern Entry table[TABLE_SIZE];
 
 void storage_append_set(const char* key, const char* value) {
     FILE* f = fopen(STORAGE_FILE, "a");
@@ -48,4 +53,23 @@ void storage_load() {
     }
 
     fclose(f);
+}
+
+void storage_compact() {
+    FILE* f = fopen(TEMP_STORAGE_FILE, "w");
+
+    if (!f) return;
+
+    const Entry* entries = kv_get_all_entries();
+
+    for (int i = 0; i < TABLE_SIZE; ++i) {
+        if (entries[i].in_use) {
+            fprintf(f, "SET %s %s\n", entries[i].key, entries[i].value);
+        }
+    }
+
+    fclose(f);
+
+    remove(STORAGE_FILE);
+    rename(TEMP_STORAGE_FILE, STORAGE_FILE);
 }

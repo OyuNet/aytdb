@@ -10,5 +10,6 @@
 void storage_append_set(const char* key, const char* value);
 void storage_append_del(const char* key);
 void storage_load();
+void storage_compact();
 
 #endif //STORAGE_H
