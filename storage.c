@@ -73,3 +73,14 @@ void storage_compact() {
     remove(STORAGE_FILE);
     rename(TEMP_STORAGE_FILE, STORAGE_FILE);
 }
+
+long storage_file_size() {
+    FILE* f = fopen(STORAGE_FILE, "r");
+
+    if (!f) return 0;
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fclose(f);
+    return size;
+}

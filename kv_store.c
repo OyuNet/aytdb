@@ -55,6 +55,10 @@ void kv_set(const char* key, const char* value) {
 
         if (logging_enabled) {
             storage_append_set(key, value);
+
+            if (storage_file_size() > MAX_STORAGE_SIZE) {
+                storage_compact();
+            }
         }
     }
 }
@@ -76,6 +80,10 @@ void kv_del(const char* key) {
 
         if (logging_enabled) {
             storage_append_del(key);
+
+            if (storage_file_size() > MAX_STORAGE_SIZE) {
+                storage_compact();
+            }
         }
     }
 }
