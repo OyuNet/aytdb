@@ -32,16 +32,18 @@ void storage_load() {
 
     if (!f) return;
 
+    char line[MAX_LINE_SIZE];
     char cmd[4];
     char key[MAX_KEY_SIZE];
     char value[MAX_VALUE_SIZE];
 
-    while (fscanf(f, "%3s %255s", cmd, key) == 2) {
-        if (strcmp(cmd, "SET") == 0) {
-            fscanf(f, "%1023s", value);
-            kv_set(key, value);
-        } else if (strcmp(cmd, "DEL") == 0) {
-            kv_del(key);
+    while (fgets(line, sizeof(line), f)) {
+        if (sscanf(line, "%3s %255s %1023[^\n]", cmd, key, value) >= 2) {
+            if (strcmp(cmd, "SET") == 0) {
+                kv_set(key, value);
+            } else if (strcmp(cmd, "DEL") == 0) {
+                kv_del(key);
+            }
         }
     }
 

@@ -7,15 +7,19 @@
 #include "hash_util.h"
 #include "storage.h"
 #include <string.h>
+#include <stdbool.h>
 
 static Entry table[TABLE_SIZE];
+bool logging_enabled = true;
 
 void kv_init() {
     for (int i = 0; i < TABLE_SIZE; ++i) {
         table[i].in_use = 0;
     }
 
+    logging_enabled = false;
     kv_load_from_file();
+    logging_enabled = true;
 }
 
 void kv_load_from_file() {
@@ -49,7 +53,9 @@ void kv_set(const char* key, const char* value) {
 
         table[slot].in_use = 1;
 
-        storage_append_set(key, value);
+        if (logging_enabled) {
+            storage_append_set(key, value);
+        }
     }
 }
 
@@ -57,7 +63,7 @@ const char* kv_get(const char* key) {
     int slot = find_slot(key, 1);
 
     if (slot != -1 && table[slot].in_use) {
-        table[slot].in_use = 0;
+        return table[slot].value;
     }
 
     return NULL;
@@ -67,6 +73,9 @@ void kv_del(const char* key) {
     int slot = find_slot(key, 1);
     if (slot != -1 && table[slot].in_use) {
         table[slot].in_use = 0;
-        storage_append_del(key);
+
+        if (logging_enabled) {
+            storage_append_del(key);
+        }
     }
 }
