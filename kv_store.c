@@ -15,6 +15,7 @@ bool logging_enabled = true;
 void kv_init() {
     for (int i = 0; i < TABLE_SIZE; ++i) {
         table[i].in_use = 0;
+        table[i].expire_at = 0;
     }
 
     logging_enabled = false;
@@ -45,6 +46,10 @@ static int find_slot(const char* key, int find_existing) {
 }
 
 void kv_set(const char* key, const char* value) {
+    kv_set_with_ttl(key, value, 0);
+}
+
+void kv_set_with_ttl(const char* key, const char* value, int ttl_seconds) {
     int slot = find_slot(key, 0);
 
     if (slot != -1) {
@@ -52,10 +57,10 @@ void kv_set(const char* key, const char* value) {
         strncpy(table[slot].value, value, MAX_VALUE_SIZE);
 
         table[slot].in_use = 1;
+        table[slot].expire_at = ttl_seconds > 0 ? time(NULL) + ttl_seconds : time(NULL);
 
         if (logging_enabled) {
-            storage_append_set(key, value);
-
+            storage_append_set(key, value, ttl_seconds);
             if (storage_file_size() > MAX_STORAGE_SIZE) {
                 storage_compact();
             }
@@ -67,6 +72,10 @@ const char* kv_get(const char* key) {
     int slot = find_slot(key, 1);
 
     if (slot != -1 && table[slot].in_use) {
+        if (table[slot].expire_at > 0 && time(NULL) > table[slot].expire_at) {
+            kv_del(key);
+            return NULL;
+        }
         return table[slot].value;
     }
 
@@ -76,7 +85,9 @@ const char* kv_get(const char* key) {
 void kv_del(const char* key) {
     int slot = find_slot(key, 1);
     if (slot != -1 && table[slot].in_use) {
+
         table[slot].in_use = 0;
+        table[slot].expire_at = 0;
 
         if (logging_enabled) {
             storage_append_del(key);

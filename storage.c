@@ -14,11 +14,11 @@
 
 extern Entry table[TABLE_SIZE];
 
-void storage_append_set(const char* key, const char* value) {
+void storage_append_set(const char* key, const char* value, const int ttl) {
     FILE* f = fopen(STORAGE_FILE, "a");
 
     if (f) {
-        fprintf(f, "SET %s %s\n", key, value);
+        fprintf(f, "SET %s %s %d\n", key, value, ttl);
         fclose(f);
     }
 }
@@ -41,11 +41,12 @@ void storage_load() {
     char cmd[4];
     char key[MAX_KEY_SIZE];
     char value[MAX_VALUE_SIZE];
+    int ttl;
 
     while (fgets(line, sizeof(line), f)) {
-        if (sscanf(line, "%3s %255s %1023[^\n]", cmd, key, value) >= 2) {
+        if (sscanf(line, "%3s %255s %1023[^\n] %d", cmd, key, value, &ttl) >= 2) {
             if (strcmp(cmd, "SET") == 0) {
-                kv_set(key, value);
+                kv_set_with_ttl(key, value, ttl);
             } else if (strcmp(cmd, "DEL") == 0) {
                 kv_del(key);
             }
@@ -62,9 +63,11 @@ void storage_compact() {
 
     const Entry* entries = kv_get_all_entries();
 
+    time_t now = time(NULL);
+
     for (int i = 0; i < TABLE_SIZE; ++i) {
-        if (entries[i].in_use) {
-            fprintf(f, "SET %s %s\n", entries[i].key, entries[i].value);
+        if (entries[i].in_use && (entries[i].expire_at == 0 || entries[i].expire_at > now)) {
+            fprintf(f, "SET %s %s %p\n", entries[i].key, entries[i].value, &entries[i].expire_at);
         }
     }
 
