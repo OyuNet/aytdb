@@ -41,10 +41,10 @@ void storage_load() {
     char cmd[4];
     char key[MAX_KEY_SIZE];
     char value[MAX_VALUE_SIZE];
-    int ttl;
+    time_t ttl;
 
     while (fgets(line, sizeof(line), f)) {
-        if (sscanf(line, "%3s %255s %1023[^\n] %d", cmd, key, value, &ttl) >= 2) {
+        if (sscanf(line, "%3s %255s %1023s %ld", cmd, key, value, &ttl) >= 2) {
             if (strcmp(cmd, "SET") == 0) {
                 kv_set_with_ttl(key, value, ttl);
             } else if (strcmp(cmd, "DEL") == 0) {
@@ -67,7 +67,8 @@ void storage_compact() {
 
     for (int i = 0; i < TABLE_SIZE; ++i) {
         if (entries[i].in_use && (entries[i].expire_at == 0 || entries[i].expire_at > now)) {
-            fprintf(f, "SET %s %s %p\n", entries[i].key, entries[i].value, &entries[i].expire_at);
+            time_t ttl = entries[i].expire_at == 0 ? 0 : entries[i].expire_at - now;
+            fprintf(f, "SET %s %s %ld\n", entries[i].key, entries[i].value, ttl);
         }
     }
 

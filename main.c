@@ -52,6 +52,7 @@ static void execute_setex() {
     int ttl;
     scanf("%255s %1023s %d", key, value, &ttl);
     kv_set_with_ttl(key, value, ttl);
+    printf("%s key added successfully.\n", key);
 }
 
 static void execute_get() {

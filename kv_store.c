@@ -57,7 +57,11 @@ void kv_set_with_ttl(const char* key, const char* value, int ttl_seconds) {
         strncpy(table[slot].value, value, MAX_VALUE_SIZE);
 
         table[slot].in_use = 1;
-        table[slot].expire_at = ttl_seconds > 0 ? time(NULL) + ttl_seconds : time(NULL);
+        if (ttl_seconds <= 0) {
+            table[slot].expire_at = 0;  // TTL yok
+        } else {
+            table[slot].expire_at = time(NULL) + ttl_seconds;
+        }
 
         if (logging_enabled) {
             storage_append_set(key, value, ttl_seconds);
@@ -72,7 +76,8 @@ const char* kv_get(const char* key) {
     int slot = find_slot(key, 1);
 
     if (slot != -1 && table[slot].in_use) {
-        if (table[slot].expire_at > 0 && time(NULL) > table[slot].expire_at) {
+        time_t now = time(NULL);
+        if (table[slot].expire_at > 0 && now > table[slot].expire_at) {
             kv_del(key);
             return NULL;
         }
