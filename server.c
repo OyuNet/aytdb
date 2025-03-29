@@ -16,11 +16,14 @@
 #define MAX_CLIENTS 64
 #define BUFFER_SIZE MAX_LINE_SIZE
 #define MAX_TOKENS 10
+#define DEFAULT_PASSWORD "password" // Varsayılan şifre
 
 static int server_socket = -1;
 static int client_sockets[MAX_CLIENTS];
+static int client_auth_status[MAX_CLIENTS]; // Kimlik doğrulama durumlarını saklar
 static Storage* storage = NULL;
 static volatile int running = 1;
+static char server_password[128] = DEFAULT_PASSWORD; // Sunucu şifresi
 
 // Bu fonksiyon main.c'deki ile aynı
 static char* parse_quoted_string(char* str, char* result) {
@@ -107,7 +110,44 @@ char* process_command(char* command, int client_socket) {
         return result;
     }
     
-    if (strcmp(tokens[0], "set") == 0) {
+    // AUTH komutu her zaman çalışabilir, kimlik doğrulama kontrolü yapılmaz
+    if (strcmp(tokens[0], "auth") == 0) {
+        if (token_count >= 2) {
+            if (strcmp(tokens[1], server_password) == 0) {
+                client_auth_status[client_socket] = 1; // Kimlik doğrulama başarılı
+                strcpy(result, "OK: Authentication successful\r\n");
+            } else {
+                strcpy(result, "ERROR: Invalid password\r\n");
+            }
+        } else {
+            strcpy(result, "ERROR: auth command requires password\r\n");
+        }
+    }
+    // PING ve HELP komutları da kimlik doğrulama kontrolü olmadan çalışabilir
+    else if (strcmp(tokens[0], "ping") == 0) {
+        strcpy(result, "PONG\r\n");
+    } else if (strcmp(tokens[0], "help") == 0) {
+        strcpy(result, "Available commands:\r\n");
+        strcat(result, "  auth <password>         : Authenticate with server\r\n");
+        strcat(result, "  set <key> <value>       : Store a key-value pair\r\n");
+        strcat(result, "  setex <key> <value> <ttl>: Store a key-value pair with expiration time in seconds\r\n");
+        strcat(result, "  get <key>               : Retrieve a value by key\r\n");
+        strcat(result, "  del <key>               : Delete a key-value pair\r\n");
+        strcat(result, "  save                    : Save a snapshot immediately\r\n");
+        strcat(result, "  interval <seconds>      : Set automatic snapshot interval (default: 300 seconds)\r\n");
+        strcat(result, "  compact                 : Remove expired keys and save snapshot\r\n");
+        strcat(result, "  config password <value> : Change server password\r\n");
+        strcat(result, "  ping                    : Test connection\r\n");
+        strcat(result, "  quit                    : Close connection\r\n");
+        strcat(result, "  shutdown                : Shutdown server\r\n");
+        strcat(result, "  help                    : Show this help message\r\n");
+    } 
+    // Diğer komutlar için kimlik doğrulama kontrolü yap
+    else if (client_auth_status[client_socket] != 1) {
+        strcpy(result, "ERROR: Authentication required. Use 'auth <password>' command\r\n");
+    }
+    // Kimlik doğrulaması yapılmışsa diğer komutları işle
+    else if (strcmp(tokens[0], "set") == 0) {
         if (token_count >= 3) {
             if (storage_set(storage, tokens[1], tokens[2])) {
                 strcpy(result, "OK\r\n");
@@ -177,21 +217,23 @@ char* process_command(char* command, int client_socket) {
     } else if (strcmp(tokens[0], "shutdown") == 0) {
         strcpy(result, "OK: Server shutting down\r\n");
         running = 0;
-    } else if (strcmp(tokens[0], "ping") == 0) {
-        strcpy(result, "PONG\r\n");
-    } else if (strcmp(tokens[0], "help") == 0) {
-        strcpy(result, "Available commands:\r\n");
-        strcat(result, "  set <key> <value>       : Store a key-value pair\r\n");
-        strcat(result, "  setex <key> <value> <ttl>: Store a key-value pair with expiration time in seconds\r\n");
-        strcat(result, "  get <key>               : Retrieve a value by key\r\n");
-        strcat(result, "  del <key>               : Delete a key-value pair\r\n");
-        strcat(result, "  save                    : Save a snapshot immediately\r\n");
-        strcat(result, "  interval <seconds>      : Set automatic snapshot interval (default: 300 seconds)\r\n");
-        strcat(result, "  compact                 : Remove expired keys and save snapshot\r\n");
-        strcat(result, "  ping                    : Test connection\r\n");
-        strcat(result, "  quit                    : Close connection\r\n");
-        strcat(result, "  shutdown                : Shutdown server\r\n");
-        strcat(result, "  help                    : Show this help message\r\n");
+    } else if (strcmp(tokens[0], "config") == 0) {
+        if (token_count >= 3) {
+            if (strcmp(tokens[1], "password") == 0) {
+                if (strlen(tokens[2]) > 0) {
+                    strncpy(server_password, tokens[2], sizeof(server_password) - 1);
+                    server_password[sizeof(server_password) - 1] = '\0';
+                    strcpy(result, "OK: Password changed successfully\r\n");
+                } else {
+                    strcpy(result, "ERROR: Password cannot be empty\r\n");
+                }
+            } else {
+                sprintf(result, "ERROR: Unknown config option: %s\r\n", tokens[1]);
+            }
+        } else {
+            strcpy(result, "ERROR: config command requires option and value\r\n");
+            strcat(result, "       Available options: password\r\n");
+        }
     } else {
         sprintf(result, "ERROR: Unknown command: %s\r\n", tokens[0]);
     }
@@ -208,9 +250,10 @@ char* process_command(char* command, int client_socket) {
 int start_server(int port) {
     struct sockaddr_in server_addr;
     
-    // Tüm istemci socketleri -1 ile başlat
+    // Tüm istemci socketleri ve kimlik doğrulama durumlarını -1 ile başlat
     for (int i = 0; i < MAX_CLIENTS; i++) {
         client_sockets[i] = -1;
+        client_auth_status[i] = 0;
     }
     
     // TCP soketi oluştur
@@ -297,13 +340,14 @@ int start_server(int port) {
                 new_socket, inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
             
             // Hoş geldin mesajı gönder
-            char *welcome_message = "Welcome to AytDB!\r\nType 'help' for available commands\r\n> ";
+            char *welcome_message = "Welcome to AytDB!\r\nAuthentication required. Use 'auth <password>' command.\r\nType 'help' for available commands\r\n> ";
             send(new_socket, welcome_message, strlen(welcome_message), 0);
             
             // Soketi istemci soketi listesine ekle
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 if (client_sockets[i] == -1) {
                     client_sockets[i] = new_socket;
+                    client_auth_status[i] = 0; // Yeni bağlantıyı kimlik doğrulaması yapılmamış olarak işaretle
                     printf("Client added to list, index: %d\n", i);
                     break;
                 }
@@ -322,6 +366,7 @@ int start_server(int port) {
                     // İstemci bağlantıyı kapattı
                     printf("Client disconnected, socket fd: %d\n", sd);
                     close_client_socket(i);
+                    client_auth_status[i] = 0; // Bağlantı kapandığında kimlik doğrulama durumunu sıfırla
                 } else {
                     // Veriyi terminat et (null-sonlandırma)
                     buffer[valread] = '\0';
