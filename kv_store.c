@@ -8,9 +8,35 @@
 #include "storage.h"
 #include <string.h>
 #include <stdbool.h>
+#include <pthread.h>
+#include <unistd.h>
 
 static Entry table[TABLE_SIZE];
 bool logging_enabled = true;
+pthread_t cleanup_thread;
+bool cleanup_running = false;
+
+static void* cleanup_loop(void* arg) {
+    while (cleanup_running) {
+        kv_purge_expired();
+        sleep(1);
+    }
+    return NULL;
+}
+
+void kv_purge_expired() {
+    time_t now = time(NULL);
+    for (int i = 0; i < TABLE_SIZE; ++i) {
+        if (table[i].in_use && table[i].expire_at > 0 && now > table[i].expire_at) {
+            kv_del(table[i].key);
+        }
+    }
+}
+
+void kv_cleanup() {
+    cleanup_running = false;
+    pthread_join(cleanup_thread, NULL);
+}
 
 void kv_init() {
     for (int i = 0; i < TABLE_SIZE; ++i) {
@@ -21,6 +47,9 @@ void kv_init() {
     logging_enabled = false;
     kv_load_from_file();
     logging_enabled = true;
+
+    cleanup_running = true;
+    pthread_create(&cleanup_thread, NULL, cleanup_loop, NULL);
 }
 
 void kv_load_from_file() {

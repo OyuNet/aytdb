@@ -3,6 +3,7 @@
 //
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #ifndef KV_STORE_H
 #define KV_STORE_H
@@ -20,7 +21,11 @@ const char* kv_get(const char *key);
 void kv_del(const char *key);
 void kv_load_from_file();
 const Entry* kv_get_all_entries();
+void kv_purge_expired();
+void kv_cleanup();
 
 extern bool logging_enabled;
+extern pthread_t cleanup_thread;
+extern bool cleanup_running;
 
 #endif //KV_STORE_H

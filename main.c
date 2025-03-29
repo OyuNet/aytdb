@@ -31,6 +31,7 @@ int main() {
             storage_compact();
             printf("Compaction process complete.\n");
         } else if (strcmp(command, "exit") == 0) {
+            kv_cleanup();
             break;
         } else {
             printf("Invalid command, please try again\n");
