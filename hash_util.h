@@ -4,13 +4,8 @@
 #ifndef HASH_UTIL_H
 #define HASH_UTIL_H
 
-#include "hash_util.h"
+#include <stddef.h>
 
-unsigned int hash_key(const char* key) {
-    unsigned int hash = 5381;
-    int c;
-    while ((c = *key++)) hash = ((hash << 5) + hash) + c;
-    return hash;
-}
+size_t hash(const char* key);
 
 #endif // HASH_UTIL_H

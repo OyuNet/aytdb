@@ -1,12 +1,43 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.10)
 project(aytdb C)
 
-set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
-add_executable(aytdb main.c
-        kv_store.h
-        hash_util.h
-        entry.h
-        kv_store.c
-        storage.h
-        storage.c)
+# Ana proje kaynak dosyaları
+add_executable(aytdb
+    main.c
+    storage.c
+    kv_store.c
+    hash_util.c
+)
+
+# Telnet sunucusu modülü
+add_executable(aytdb_server
+    server_main.c
+    server.c
+    storage.c
+    kv_store.c
+    hash_util.c
+)
+
+# Test kaynak dosyaları
+add_executable(aytdb_test
+    test_runner.c
+    test_storage.c
+    storage.c
+    kv_store.c
+    hash_util.c
+)
+
+# Test çalıştırma hedefi
+add_custom_target(run_tests
+    COMMAND aytdb_test
+    DEPENDS aytdb_test
+)
+
+# Telnet sunucusu çalıştırma hedefi
+add_custom_target(run_server
+    COMMAND aytdb_server
+    DEPENDS aytdb_server
+)
